@@ -1,0 +1,24 @@
+- hosts: webserver
+  tasks:
+    - name: Pull latest Laravel changes
+      shell: |
+        cd /var/www/laravel && git pull origin main
+
+    - name: Install Composer dependencies
+      shell: composer install --no-interaction --prefer-dist
+      args:
+        chdir: /var/www/laravel
+
+    - name: Install NPM dependencies and build
+      shell: npm install && npm run build
+      args:
+        chdir: /var/www/laravel
+
+    - name: Run PEST tests with SQLite
+      shell: php artisan test
+      environment:
+        DB_CONNECTION: sqlite
+        DB_DATABASE: ":memory:"
+
+    - name: Backup MySQL database
+      shell: mysqldump -u root -pHello@123 kimhorn-db > /backup/db.sql

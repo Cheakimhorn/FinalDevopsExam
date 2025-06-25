@@ -1,79 +1,47 @@
 pipeline {
-    agent {
-        docker {
-            image 'php:8.2-fpm'
-            args '-u root'
-        }
-    }
-
-    environment {
-        DEPLOY_PLAYBOOK = 'ansible/deploy_laravel.yml'
-    }
-
-    options {
-        timestamps()
-        disableConcurrentBuilds()
-    }
+    agent any
 
     triggers {
         pollSCM('H/5 * * * *')
     }
 
+    environment {
+        EMAIL = 'srengty@gmail.com'
+    }
+
     stages {
-        stage('Checkout Code') {
+        stage('Checkout') {
             steps {
-                checkout scm
+                git branch: 'main', credentialsId: 'Jenkins', url: 'https://github.com/Cheakimhorn/FinalDevopsExam.git'
             }
         }
 
-        stage('Install Dependencies') {
+        stage('Test') {
             steps {
-                sh '''
-                apt-get update && apt-get install -y curl nodejs npm
-                if ! command -v composer >/dev/null 2>&1; then
-                    curl -sS https://getcomposer.org/installer -o composer-installer.php
-                    php composer-installer.php
-                    mv composer.phar /usr/local/bin/composer
-                    rm composer-installer.php
-                fi
-                composer install --no-interaction --prefer-dist
-                npm install
-                npm run build
-                '''
+                sh 'php artisan test'
             }
         }
 
-        stage('Run Tests (SQLite)') {
+        stage('Build') {
             steps {
-                sh '''
-                cp .env .env.testing
-                sed -i 's/^DB_CONNECTION=.*/DB_CONNECTION=sqlite/' .env.testing
-                sed -i 's|^DB_DATABASE=.*|DB_DATABASE=database/database.sqlite|' .env.testing
-                touch database/database.sqlite
-                php artisan migrate --env=testing
-                php artisan test --env=testing
-                '''
+                sh 'composer install'
+                sh 'npm install && npm run build'
             }
         }
 
-        stage('Deploy with Ansible') {
+        stage('Deploy') {
             steps {
-                sh '''
-                apt-get install -y ansible
-                ansible-playbook ${DEPLOY_PLAYBOOK}
-                '''
+                sh 'ansible-playbook -i inventory.ini deploy.yml'
             }
         }
     }
 
     post {
         failure {
-            emailext(
-                subject: "❌ Build Failed: ${env.JOB_NAME} [#${env.BUILD_NUMBER}]",
-                body: """<p>Build failed on ${env.JOB_NAME} [#${env.BUILD_NUMBER}]</p>
-                         <p>Check logs at: <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>""",
-                to: 'srengty@gmail.com,kimhornchea612@gmail.com'
-            )
+            mail bcc: "",
+                 to: "srengty@gmail.com",
+                 subject: "Build Failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                 body: "Check Jenkins for build failure logs."
         }
     }
 }
