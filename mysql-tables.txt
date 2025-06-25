@@ -1,0 +1,20 @@
+show tables;
++-----------------------+
+| Tables_in_kimhorn-db  |
++-----------------------+
+| bookings              |
+| cache                 |
+| cache_locks           |
+| failed_jobs           |
+| favorites             |
+| job_batches           |
+| jobs                  |
+| migrations            |
+| password_reset_tokens |
+| payments              |
+| reviews               |
+| sessions              |
+| terrain_images        |
+| terrains              |
+| users                 |
++-----------------------+

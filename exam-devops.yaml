@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: exam-devops
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: exam-app
+  template:
+    metadata:
+      labels:
+        app: exam-app
+    spec:
+      containers:
+      - name: laravel-web
+        image: hornhorn/devopsfinal:latest
+        ports:
+        - containerPort: 8080
+        - containerPort: 22
+        env:
+        - name: DB_CONNECTION
+          value: mysql
+        - name: DB_HOST
+          value: 127.0.0.1
+        - name: DB_PORT
+          value: "3306"
+        - name: DB_DATABASE
+          value: kimhorn-db
+        - name: DB_USERNAME
+          value: root
+        - name: DB_PASSWORD
+          value: Hello@123
+
+      - name: mysql
+        image: mysql:8
+        ports:
+        - containerPort: 3306
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: Hello@123
+        - name: MYSQL_DATABASE
+          value: kimhorn-db
