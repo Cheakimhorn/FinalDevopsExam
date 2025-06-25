@@ -59,15 +59,15 @@ pipeline {
         }
     }
 
-    post {
-        failure {
-            emailext (
-                subject: "❌ Build Failed: ${env.JOB_NAME} [#${env.BUILD_NUMBER}]",
-                body: """<p>Build failed on ${env.JOB_NAME} [#${env.BUILD_NUMBER}]</p>
-                         <p>Check console log at: <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>""",
-                to: 'srengty@gmail.com',
-                recipientProviders: [developers(), culprits()]
-            )
-        }
-    }
+    // post {
+    //     failure {
+    //         emailext (
+    //             subject: "❌ Build Failed: ${env.JOB_NAME} [#${env.BUILD_NUMBER}]",
+    //             body: """<p>Build failed on ${env.JOB_NAME} [#${env.BUILD_NUMBER}]</p>
+    //                      <p>Check console log at: <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>""",
+    //             to: 'srengty@gmail.com',
+    //             recipientProviders: [developers(), culprits()]
+    //         )
+    //     }
+    // }
 }
