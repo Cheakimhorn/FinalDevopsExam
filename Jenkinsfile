@@ -1,5 +1,10 @@
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'composer:latest' // Includes PHP & Composer
+            args '-v /var/run/docker.sock:/var/run/docker.sock' // If needed
+        }
+    }
 
     environment {
         DEPLOY_PLAYBOOK = 'ansible/deploy_laravel.yml'
@@ -11,28 +16,25 @@ pipeline {
     }
 
     triggers {
-        pollSCM('H/5 * * * *')  // Every 5 minutes
+        pollSCM('H/5 * * * *') // Check GitHub every 5 minutes
     }
 
     stages {
-        stage('Clone') {
-            steps {
-                git branch: 'main', url: 'https://github.com/Cheakimhorn/FinalDevopsExam.git'
-            }
-        }
-        
         stage('Checkout Code') {
             steps {
                 checkout scm
             }
         }
 
-        stage('Build Composer & NPM') {
+        stage('Install Dependencies') {
             steps {
                 dir('laravel') {
-                    sh 'composer install --no-interaction --prefer-dist'
-                    sh 'npm install'
-                    sh 'npm run build'
+                    sh '''
+                    apt-get update && apt-get install -y npm
+                    composer install --no-interaction --prefer-dist
+                    npm install
+                    npm run build
+                    '''
                 }
             }
         }
@@ -59,15 +61,14 @@ pipeline {
         }
     }
 
-    // post {
-    //     failure {
-    //         emailext (
-    //             subject: "❌ Build Failed: ${env.JOB_NAME} [#${env.BUILD_NUMBER}]",
-    //             body: """<p>Build failed on ${env.JOB_NAME} [#${env.BUILD_NUMBER}]</p>
-    //                      <p>Check console log at: <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>""",
-    //             to: 'srengty@gmail.com',
-    //             recipientProviders: [developers(), culprits()]
-    //         )
-    //     }
-    // }
+    post {
+        failure {
+            emailext(
+                subject: "❌ Build Failed: ${env.JOB_NAME} [#${env.BUILD_NUMBER}]",
+                body: """<p>Build failed on ${env.JOB_NAME} [#${env.BUILD_NUMBER}]</p>
+                         <p>Check logs at: <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>""",
+                to: 'srengty@gmail.com,kimhornchea612@gmail.com'
+            )
+        }
+    }
 }
