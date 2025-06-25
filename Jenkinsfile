@@ -1,10 +1,5 @@
 pipeline {
-    agent {
-        docker {
-            image 'composer:latest' // Includes PHP & Composer
-            args '-v /var/run/docker.sock:/var/run/docker.sock' // If needed
-        }
-    }
+    agent any
 
     environment {
         DEPLOY_PLAYBOOK = 'ansible/deploy_laravel.yml'
@@ -16,7 +11,7 @@ pipeline {
     }
 
     triggers {
-        pollSCM('H/5 * * * *') // Check GitHub every 5 minutes
+        pollSCM('H/5 * * * *')
     }
 
     stages {
@@ -30,7 +25,15 @@ pipeline {
             steps {
                 dir('laravel') {
                     sh '''
-                    apt-get update && apt-get install -y npm
+                    if ! command -v composer >/dev/null 2>&1; then
+                      curl -sS https://getcomposer.org/installer | php
+                      mv composer.phar /usr/local/bin/composer
+                    fi
+
+                    if ! command -v npm >/dev/null 2>&1; then
+                      apt-get update && apt-get install -y npm
+                    fi
+
                     composer install --no-interaction --prefer-dist
                     npm install
                     npm run build
