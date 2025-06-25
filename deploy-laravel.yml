@@ -1,0 +1,92 @@
+---
+- name: Deploy Laravel App in Kubernetes Web Pod
+  hosts: localhost
+  vars:
+    pod_name: "{{ lookup('pipe', 'kubectl get pod -l app=exam-app -o jsonpath={.items[0].metadata.name}') }}"
+    container_name: laravel-web
+    app_path: /var/www/html
+    mysql_db: kimhorn-db
+    mysql_user: root
+    mysql_password: Hello@123
+    backup_path: /var/backups/db_backup.sql
+
+  tasks:
+    - name: Git pull if no local changes and .git exists
+      command: >
+        kubectl exec {{ pod_name }} -c {{ container_name }} -- bash -c "
+        cd {{ app_path }} &&
+        if [ -d .git ]; then
+          if git diff --quiet && git diff --cached --quiet; then
+            echo '✅ Pulling latest changes...' && git pull
+          else
+            echo '⚠️ Local changes detected. Skipping git pull.'
+          fi
+        else
+          echo '⚠️ .git directory not found. Skipping git pull.'
+        fi
+        "
+      register: git_pull_result
+      failed_when: false
+
+    - name: Show git pull result
+      debug:
+        msg: "{{ git_pull_result.stdout }}"
+
+    - name: Install PHP dependencies using Composer
+      command: >
+        kubectl exec {{ pod_name }} -c {{ container_name }} -- bash -c "
+        cd {{ app_path }} && composer install --no-interaction --prefer-dist
+        "
+
+    - name: Install JS dependencies and build assets using NPM
+      command: >
+        kubectl exec {{ pod_name }} -c {{ container_name }} -- bash -c "
+        cd {{ app_path }} && npm install && npm run build
+        "
+
+    - name: Copy .env to .env.testing
+      command: >
+        kubectl exec {{ pod_name }} -c {{ container_name }} -- bash -c "
+        cd {{ app_path }} && cp .env .env.testing
+        "
+      failed_when: false
+
+    - name: Update .env.testing to use SQLite
+      command: >
+        kubectl exec {{ pod_name }} -c {{ container_name }} -- bash -c "
+        sed -i 's/^DB_CONNECTION=.*/DB_CONNECTION=sqlite/' {{ app_path }}/.env.testing &&
+        sed -i 's|^DB_DATABASE=.*|DB_DATABASE={{ app_path }}/database/database.sqlite|' {{ app_path }}/.env.testing
+        "
+      failed_when: false
+
+    - name: Ensure SQLite test database file exists
+      command: >
+        kubectl exec {{ pod_name }} -c {{ container_name }} -- touch {{ app_path }}/database/database.sqlite
+
+    - name: Run migrations for test database
+      command: >
+        kubectl exec {{ pod_name }} -c {{ container_name }} -- bash -c "
+        cd {{ app_path }} && php artisan migrate --env=testing
+        "
+
+    - name: Run Laravel test suite with SQLite database
+      command: >
+        kubectl exec {{ pod_name }} -c {{ container_name }} -- bash -c "
+        cd {{ app_path }} && php artisan config:clear && php artisan test --env=testing
+        "
+      register: test_result
+      failed_when: false
+
+    - name: Show test output
+      debug:
+        msg: "{{ test_result.stdout }}"
+
+    - name: Backup MySQL production database inside container
+      command: >
+        kubectl exec {{ pod_name }} -c {{ container_name }} -- bash -c "
+        mysqldump -h 127.0.0.1 -u {{ mysql_user }} -p{{ mysql_password }} {{ mysql_db }} > {{ backup_path }}
+        "
+
+    - name: Copy backup to local machine
+      command: >
+        kubectl cp {{ pod_name }}:{{ backup_path }} ./backup.sql -c {{ container_name }}

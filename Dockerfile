@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
     nginx \
     npm \
     nano   \
+    default-mysql-client \
     openssh-server
 
 # Install PHP extensions
