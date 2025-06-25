@@ -1,5 +1,10 @@
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'php:8.2-fpm'
+            args '-u root'
+        }
+    }
 
     environment {
         DEPLOY_PLAYBOOK = 'ansible/deploy_laravel.yml'
@@ -23,43 +28,40 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
-                dir('laravel') {
-                    sh '''
-                    if ! command -v composer >/dev/null 2>&1; then
-                      curl -sS https://getcomposer.org/installer | php
-                      mv composer.phar /usr/local/bin/composer
-                    fi
-
-                    if ! command -v npm >/dev/null 2>&1; then
-                      apt-get update && apt-get install -y npm
-                    fi
-
-                    composer install --no-interaction --prefer-dist
-                    npm install
-                    npm run build
-                    '''
-                }
+                sh '''
+                apt-get update && apt-get install -y curl nodejs npm
+                if ! command -v composer >/dev/null 2>&1; then
+                    curl -sS https://getcomposer.org/installer -o composer-installer.php
+                    php composer-installer.php
+                    mv composer.phar /usr/local/bin/composer
+                    rm composer-installer.php
+                fi
+                composer install --no-interaction --prefer-dist
+                npm install
+                npm run build
+                '''
             }
         }
 
         stage('Run Tests (SQLite)') {
             steps {
-                dir('laravel') {
-                    sh '''
-                    cp .env .env.testing
-                    sed -i 's/^DB_CONNECTION=.*/DB_CONNECTION=sqlite/' .env.testing
-                    sed -i 's|^DB_DATABASE=.*|DB_DATABASE=database/database.sqlite|' .env.testing
-                    touch database/database.sqlite
-                    php artisan migrate --env=testing
-                    php artisan test --env=testing
-                    '''
-                }
+                sh '''
+                cp .env .env.testing
+                sed -i 's/^DB_CONNECTION=.*/DB_CONNECTION=sqlite/' .env.testing
+                sed -i 's|^DB_DATABASE=.*|DB_DATABASE=database/database.sqlite|' .env.testing
+                touch database/database.sqlite
+                php artisan migrate --env=testing
+                php artisan test --env=testing
+                '''
             }
         }
 
         stage('Deploy with Ansible') {
             steps {
-                sh "ansible-playbook ${DEPLOY_PLAYBOOK}"
+                sh '''
+                apt-get install -y ansible
+                ansible-playbook ${DEPLOY_PLAYBOOK}
+                '''
             }
         }
     }
